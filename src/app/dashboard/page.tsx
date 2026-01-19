@@ -56,7 +56,14 @@ export default function Dashboard() {
       setError(null);
       console.log('[Dashboard] Fetching all products...');
       
-      const response = await fetch(`${API_BASE_URL}/products`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${API_BASE_URL}/products`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
       const data = await response.json();
       
       console.log('[Dashboard] Products fetched:', data);
@@ -132,8 +139,12 @@ export default function Dashboard() {
     
     try {
       setAddingProduct(true);
+      setStatusMessage('Adding product...');
       console.log('[Dashboard] Adding new product:', productInput);
       console.log('[Dashboard] API URL:', `${API_BASE_URL}/add-product`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
       
       const response = await fetch(`${API_BASE_URL}/add-product`, {
         method: 'POST',
@@ -141,8 +152,11 @@ export default function Dashboard() {
         body: JSON.stringify({ 
           name: productInput,
           url: `https://www.amazon.com/s?k=${encodeURIComponent(productInput)}`
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       console.log('[Dashboard] Response status:', response.status);
       const data = await response.json();
@@ -160,12 +174,19 @@ export default function Dashboard() {
           fetchAllProducts();
         }, 10000);
       } else {
+        setStatusMessage(null);
         alert('⚠️ ' + (data.message || 'Failed to add product'));
       }
     } catch (err) {
       console.error('[Dashboard] Error adding product:', err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      alert('❌ Network error: ' + errorMessage);
+      setStatusMessage(null);
+      
+      if (err instanceof Error && err.name === 'AbortError') {
+        alert('❌ Request timed out. The backend might be slow or not responding.');
+      } else {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        alert('❌ Network error: ' + errorMessage + '\n\nMake sure the backend server is running on port 3001.');
+      }
     } finally {
       setAddingProduct(false);
     }
