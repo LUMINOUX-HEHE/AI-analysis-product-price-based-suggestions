@@ -13,7 +13,14 @@ def check_playwright():
     """Check if Playwright is installed"""
     try:
         import playwright
-        print(f"✓ Playwright installed: {playwright.__version__}")
+        # Try to get version from package metadata
+        try:
+            from importlib.metadata import version
+            pw_version = version('playwright')
+        except:
+            pw_version = "installed"
+        
+        print(f"✓ Playwright {pw_version}")
         return True
     except ImportError:
         print("✗ Playwright not installed")
@@ -23,11 +30,26 @@ def check_playwright():
 def check_chromium():
     """Check if Chromium browser is installed"""
     try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            p.chromium.launch_server()
+        import asyncio
+        from playwright.async_api import async_playwright
+        
+        async def check_browser():
+            try:
+                async with async_playwright() as p:
+                    browser = await p.chromium.launch(headless=True)
+                    await browser.close()
+                    return True
+            except Exception as e:
+                return False
+        
+        result = asyncio.run(check_browser())
+        if result:
             print("✓ Chromium browser available")
             return True
+        else:
+            print("✗ Chromium browser not available")
+            print("  Fix: python -m playwright install chromium")
+            return False
     except Exception as e:
         print(f"✗ Chromium browser not available: {e}")
         print("  Fix: python -m playwright install chromium")
