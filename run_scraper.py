@@ -1,10 +1,19 @@
 """New headless scraper - uses Playwright for Amazon & Flipkart"""
 import asyncio
 import sys
+import os
 import argparse
 import json
 from pathlib import Path
 import traceback
+import io
+
+# Fix Unicode encoding for Windows console  
+if sys.platform == 'win32' and hasattr(sys.stdout, 'buffer'):
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    except:
+        pass  # If this fails (e.g., in piped context), just continue
 
 # Add headless_scraper to path
 sys.path.insert(0, str(Path(__file__).parent))

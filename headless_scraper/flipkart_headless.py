@@ -7,6 +7,15 @@ from playwright.async_api import async_playwright, Page, Browser
 from urllib.parse import quote_plus
 import sys
 import os
+import io
+
+# Fix Unicode encoding for Windows console
+if sys.platform == 'win32' and hasattr(sys.stdout, 'buffer'):
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    except:
+        pass  # If this fails, just continue
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from headless_scraper.config import (
     get_random_user_agent,
@@ -16,6 +25,15 @@ from headless_scraper.config import (
     MIN_PAGE_LOAD_DELAY,
     MAX_PAGE_LOAD_DELAY
 )
+
+def safe_print(text: str):
+    """Safely print text with Unicode characters"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        # Remove problematic characters and print
+        safe_text = text.encode('ascii', errors='replace').decode('ascii')
+        print(safe_text)
 
 class FlipkartHeadlessScraper:
     """Flipkart scraper using headless Playwright"""
@@ -68,7 +86,7 @@ class FlipkartHeadlessScraper:
         """)
         
         self.page = await context.new_page()
-        print(f"[Flipkart] Browser initialized in headless mode")
+        safe_print(f"[Flipkart] Browser initialized in headless mode")
     
     async def search_products(self, query: str, limit: int = 5) -> List[Dict]:
         """Search for products and extract data"""
@@ -76,8 +94,8 @@ class FlipkartHeadlessScraper:
             await self.init_browser()
         
         search_url = f"{self.base_url}/search?q={quote_plus(query)}"
-        print(f"[Flipkart] Searching for: {query}")
-        print(f"[Flipkart] URL: {search_url}")
+        safe_print(f"[Flipkart] Searching for: {query}")
+        safe_print(f"[Flipkart] URL: {search_url}")
         
         try:
             # Navigate to search page
@@ -90,7 +108,7 @@ class FlipkartHeadlessScraper:
             try:
                 await self.page.wait_for_selector('div._1AtVbE, div[data-id], a._1fQZEK', timeout=10000)
             except:
-                print(f"[Flipkart] Warning: Product selector not found, continuing...")
+                safe_print(f"[Flipkart] Warning: Product selector not found, continuing...")
             
             # Extract products using JavaScript evaluation
             products = await self.page.evaluate("""() => {
@@ -145,29 +163,39 @@ class FlipkartHeadlessScraper:
             # Format results
             formatted_products = []
             for i, product in enumerate(products[:limit]):
-                # Build full URL
-                product_url = product['link']
-                if product_url.startswith('/'):
-                    product_url = f"{self.base_url}{product_url}"
-                elif not product_url.startswith('http'):
-                    product_url = f"{self.base_url}/{product_url}"
-                
-                formatted_product = {
-                    "productName": product['title'],
-                    "platform": self.platform,
-                    "price": product['price'],
-                    "rating": product['rating'],
-                    "url": product_url,
-                    "timestamp": datetime.now().isoformat()
-                }
-                formatted_products.append(formatted_product)
-                print(f"[Flipkart] [{i+1}] {product['title'][:60]}... - {product['price']}")
+                try:
+                    # Build full URL
+                    product_url = product['link']
+                    if product_url.startswith('/'):
+                        product_url = f"{self.base_url}{product_url}"
+                    elif not product_url.startswith('http'):
+                        product_url = f"{self.base_url}/{product_url}"
+                    
+                    # Clean price - remove rupee symbol and convert to numeric
+                    price_str = product['price'].replace('₹', '').replace('Rs', '').strip()
+                    try:
+                        price_numeric = float(price_str.split(',')[0]) if price_str else 0.0
+                    except (ValueError, IndexError):
+                        price_numeric = 0.0
+                    
+                    formatted_product = {
+                        "productName": product['title'],
+                        "platform": self.platform,
+                        "price": str(price_numeric),
+                        "rating": product['rating'],
+                        "url": product_url,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    formatted_products.append(formatted_product)
+                    safe_print(f"[Flipkart] [{i+1}] {product['title'][:60]}... - ₹{price_numeric:.2f}")
+                except Exception as e:
+                    safe_print(f"[Flipkart] Error formatting product: {str(e)}")
             
-            print(f"[Flipkart] Extracted {len(formatted_products)} products")
+            safe_print(f"[Flipkart] Extracted {len(formatted_products)} products")
             return formatted_products
             
         except Exception as e:
-            print(f"[Flipkart] Error during scraping: {str(e)}")
+            safe_print(f"[Flipkart] Error during scraping: {str(e)}")
             import traceback
             traceback.print_exc()
             return []
@@ -176,4 +204,4 @@ class FlipkartHeadlessScraper:
         """Close browser"""
         if self.browser:
             await self.browser.close()
-            print(f"[Flipkart] Browser closed")
+            safe_print(f"[Flipkart] Browser closed")

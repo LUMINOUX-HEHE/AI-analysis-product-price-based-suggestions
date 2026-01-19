@@ -7,6 +7,15 @@ from playwright.async_api import async_playwright, Page, Browser
 from urllib.parse import quote_plus
 import sys
 import os
+import io
+
+# Fix Unicode encoding for Windows console
+if sys.platform == 'win32' and hasattr(sys.stdout, 'buffer'):
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    except:
+        pass  # If this fails, just continue
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from headless_scraper.config import (
     get_random_user_agent,
@@ -16,6 +25,16 @@ from headless_scraper.config import (
     MIN_PAGE_LOAD_DELAY,
     MAX_PAGE_LOAD_DELAY
 )
+
+def safe_print(text: str):
+    """Safely print text with Unicode characters"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        # Remove problematic characters and print
+        safe_text = text.encode('ascii', errors='replace').decode('ascii')
+        print(safe_text)
+
 
 class AmazonHeadlessScraper:
     """Amazon scraper using headless Playwright"""
@@ -139,29 +158,44 @@ class AmazonHeadlessScraper:
             # Format results
             formatted_products = []
             for i, product in enumerate(products[:limit]):
-                # Build full URL
-                product_url = product['link']
-                if product_url.startswith('/'):
-                    product_url = f"{self.base_url}{product_url}"
-                elif not product_url.startswith('http'):
-                    product_url = f"{self.base_url}/{product_url}"
-                
-                formatted_product = {
-                    "productName": product['title'],
-                    "platform": self.platform,
-                    "price": product['price'],
-                    "rating": product['rating'],
-                    "url": product_url,
-                    "timestamp": datetime.now().isoformat()
-                }
-                formatted_products.append(formatted_product)
-                print(f"[Amazon] [{i+1}] {product['title'][:60]}... - {product['price']}")
+                try:
+                    # Build full URL
+                    product_url = product['link']
+                    if product_url.startswith('/'):
+                        product_url = f"{self.base_url}{product_url}"
+                    elif not product_url.startswith('http'):
+                        product_url = f"{self.base_url}/{product_url}"
+                    
+                    # Clean price: remove currency symbols and convert to float
+                    price_str = product['price'].replace('₹', '').strip()
+                    try:
+                        price_float = float(price_str.replace(',', ''))
+                    except:
+                        price_float = 0.0
+                    
+                    formatted_product = {
+                        "productName": product['title'],
+                        "platform": self.platform,
+                        "price": str(price_float),
+                        "rating": product['rating'],
+                        "url": product_url,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    formatted_products.append(formatted_product)
+                    
+                    # Safe print with Unicode handling
+                    title_safe = product['title'][:60].encode('ascii', errors='replace').decode('ascii')
+                    price_safe = product['price'].encode('ascii', errors='replace').decode('ascii')
+                    safe_print(f"[Amazon] [{i+1}] {title_safe}... - {price_safe}")
+                except Exception as e:
+                    safe_print(f"[Amazon] Error formatting product: {str(e)}")
+                    continue
             
-            print(f"[Amazon] Extracted {len(formatted_products)} products")
+            safe_print(f"[Amazon] Extracted {len(formatted_products)} products")
             return formatted_products
             
         except Exception as e:
-            print(f"[Amazon] Error during scraping: {str(e)}")
+            safe_print(f"[Amazon] Error during scraping: {str(e)}")
             import traceback
             traceback.print_exc()
             return []
@@ -170,4 +204,4 @@ class AmazonHeadlessScraper:
         """Close browser"""
         if self.browser:
             await self.browser.close()
-            print(f"[Amazon] Browser closed")
+            safe_print(f"[Amazon] Browser closed")
