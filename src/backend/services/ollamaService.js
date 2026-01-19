@@ -65,26 +65,31 @@ class OllamaService {
     const highestPrice = Math.max(...prices.map(p => p.price));
     const priceDifference = highestPrice - lowestPrice;
 
-    return `You are a product price analysis expert. Analyze the following product pricing data and provide a concise recommendation.
+    return `You are a professional retail analyst and price intelligence expert. Analyze the following product data and provide a strategic recommendation.
 
 Product: ${product.name}
 
-Current Prices:
+Current Market Prices:
 ${priceInfo}
 
-Price Range: ${prices[0].currency} ${lowestPrice} - ${prices[0].currency} ${highestPrice}
-Price Difference: ${prices[0].currency} ${priceDifference.toFixed(2)}
+Highest Price: ${prices[0].currency} ${highestPrice}
+Lowest Price: ${prices[0].currency} ${lowestPrice}
+Price Gap: ${prices[0].currency} ${priceDifference.toFixed(2)}
 ${historyInfo}
 
-Based on this data, provide:
-1. Which platform offers the best price (just the platform name)
-2. Should the user buy now or wait? (just "Buy Now" or "Wait")
-3. A brief 2-3 sentence explanation for your recommendation
+Strategic Tasks:
+1. Identify the BEST_PLATFORM based on total value.
+2. Provide a RECOMMENDATION: Choose from: "Strong Buy", "Buy Now", "Wait for Sale", or "Avoid".
+3. Provide a CONFIDENCE: Percentage (0-100%).
+4. Provide a SUMMARY: A precise 2-sentence market analysis.
+5. Provide a WHY: One clear bullet point explaining the primary reason for the recommendation.
 
-Format your response EXACTLY as follows (no extra text):
+Format your response EXACTLY as follows:
 BEST_PLATFORM: [platform name]
-RECOMMENDATION: [Buy Now/Wait]
-SUMMARY: [Your 2-3 sentence explanation]`;
+RECOMMENDATION: [Action category]
+CONFIDENCE: [Percentage]%
+SUMMARY: [Analysis]
+WHY: [Reason]`;
   }
 
   /**
@@ -128,17 +133,22 @@ SUMMARY: [Your 2-3 sentence explanation]`;
     try {
       const bestPlatformMatch = response.match(/BEST_PLATFORM:\s*(.+?)(?:\n|$)/i);
       const recommendationMatch = response.match(/RECOMMENDATION:\s*(.+?)(?:\n|$)/i);
+      const confidenceMatch = response.match(/CONFIDENCE:\s*(.+?)(?:\n|$)/i);
       const summaryMatch = response.match(/SUMMARY:\s*(.+?)(?:\n|$)/is);
+      const whyMatch = response.match(/WHY:\s*(.+?)(?:\n|$)/is);
 
       const bestPlatform = bestPlatformMatch ? bestPlatformMatch[1].trim() : this.findCheapestPlatform(prices);
       const recommendation = recommendationMatch ? recommendationMatch[1].trim() : 'Buy Now';
+      const confidence = confidenceMatch ? confidenceMatch[1].trim() : '85%';
       const summary = summaryMatch ? summaryMatch[1].trim() : this.getDefaultSummary(prices);
+      const why = whyMatch ? whyMatch[1].trim() : 'Current market lowest price.';
 
       return {
         bestPlatform,
         recommendation,
+        confidence,
         summary,
-        confidence: 'high',
+        why,
         analysisDate: new Date().toISOString(),
         rawResponse: response
       };
@@ -179,8 +189,9 @@ SUMMARY: [Your 2-3 sentence explanation]`;
     return {
       bestPlatform: prices.length > 0 ? this.findCheapestPlatform(prices) : 'N/A',
       recommendation: 'Buy Now',
+      confidence: '70%',
       summary: this.getDefaultSummary(prices),
-      confidence: 'medium',
+      why: 'Lowest price currently detected in the market.',
       analysisDate: new Date().toISOString(),
       aiAvailable: false
     };

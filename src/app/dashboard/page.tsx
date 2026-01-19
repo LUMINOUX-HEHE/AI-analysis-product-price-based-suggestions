@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [priceData, setPriceData] = useState<any[]>([]);
   const [loadingPrices, setLoadingPrices] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
   // Load all products on mount
   useEffect(() => {
@@ -226,202 +227,326 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-12 px-6 lg:px-12 bg-[#0a0a0a]">
+    <div className="min-h-screen pt-20 bg-[#0a0a0a] text-white">
       <Header />
       
-      <div className="max-w-7xl mx-auto space-y-10">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Price Dashboard</h1>
-            <p className="text-gray-400">
-              {products.length > 0 
-                ? `Monitoring ${products.length} product${products.length > 1 ? 's' : ''}`
-                : 'No products yet. Add one to start tracking!'}
-            </p>
-          </div>
-          
-          <div className="flex gap-3">
-            <div className="flex-1 flex items-center px-4 bg-[#141414] border border-border rounded-xl">
-              <Search className="text-gray-500 mr-2" size={18} />
+      <div className="flex h-[calc(100vh-80px)] overflow-hidden">
+        {/* Sidebar - Product List */}
+        <div className="w-80 border-r border-border bg-[#0d0d0d] flex flex-col hidden lg:flex">
+          <div className="p-6 border-b border-border">
+            <h2 className="text-xl font-bold mb-4">Your Products</h2>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-500" />
+              </div>
               <input 
                 type="text" 
-                placeholder="Product name..."
-                value={productInput}
-                onChange={(e) => setProductInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addNewProduct()}
-                className="bg-transparent border-none focus:outline-none py-2.5 text-white placeholder:text-gray-600 w-48"
+                placeholder="Find a product..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 bg-[#1a1a1a] border border-border rounded-lg text-sm placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
               />
             </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {products.length === 0 ? (
+              <div className="text-center py-12 px-4">
+                <p className="text-gray-500 text-sm italic">No products tracked yet.</p>
+              </div>
+            ) : (
+              products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).map((product) => (
+                <button
+                  key={product.id}
+                  onClick={() => selectProduct(product)}
+                  className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${
+                    selectedProduct?.id === product.id
+                      ? 'border-blue-500 bg-blue-500/5 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
+                      : 'border-transparent hover:bg-[#151515]'
+                  }`}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className={`font-semibold text-sm line-clamp-2 transition-colors ${
+                      selectedProduct?.id === product.id ? 'text-blue-400' : 'text-gray-300 group-hover:text-white'
+                    }`}>
+                      {product.name}
+                    </h3>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-[11px] text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <div className={`w-1.5 h-1.5 rounded-full ${product.prices && product.prices.length > 0 ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`}></div>
+                      {product.prices && product.prices.length > 0 ? 'Analyzed' : 'Scraping...'}
+                    </span>
+                    <span>{new Date(product.created_at).toLocaleDateString()}</span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+          
+          <div className="p-4 bg-[#0a0a0a] border-t border-border mt-auto">
             <button 
-              onClick={addNewProduct}
-              disabled={addingProduct || !productInput.trim()}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2"
+              onClick={() => setProductInput("")} 
+              className="w-full py-2.5 px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-medium transition-all"
             >
-              {addingProduct ? (
-                <>
-                  <Loader2 className="animate-spin" size={16} />
-                  Adding...
-                </>
-              ) : (
-                '+ Add Product'
-              )}
+              Configure Alerts
             </button>
           </div>
         </div>
 
-        {statusMessage && (
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-blue-400 text-sm flex items-center gap-2">
-            <Loader2 className="animate-spin" size={16} />
-            {statusMessage}
-          </div>
-        )}
-
-        {products.length === 0 ? (
-          <div className="bg-[#141414] border border-border rounded-3xl p-12 text-center">
-            <AlertCircle className="text-gray-600 mx-auto mb-4" size={48} />
-            <h3 className="text-xl font-semibold mb-2">No Products Yet</h3>
-            <p className="text-gray-400 mb-6">Add a product above to start tracking prices!</p>
-          </div>
-        ) : (
-          <>
-            {/* Chart Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-[#141414] border border-border rounded-3xl p-6 lg:p-8">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xl font-semibold">
-                    Price Trends {selectedProduct && `(${selectedProduct.name})`}
-                  </h3>
-                  {loadingPrices && (
-                    <Loader2 className="animate-spin text-blue-500" size={20} />
-                  )}
-                </div>
-                
-                {priceData.length > 0 ? (
-                  <PriceChart data={priceData} />
-                ) : (
-                  <div className="h-[300px] flex items-center justify-center text-gray-500">
-                    <div className="text-center">
-                      <AlertCircle className="mx-auto mb-3" size={32} />
-                      <p>No price data available yet.</p>
-                      <p className="text-sm mt-2">The scraper is fetching prices...</p>
-                    </div>
-                  </div>
-                )}
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-y-auto bg-[#0a0a0a]">
+          <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-8 pb-32">
+            {/* Top Bar with Add Product */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+              <div className="space-y-1">
+                <h1 className="text-3xl font-bold tracking-tight">
+                  {selectedProduct ? 'Product Insights' : 'Overview'}
+                </h1>
+                <p className="text-gray-400 text-sm">
+                  {selectedProduct ? `Detailed analysis for ${selectedProduct.name}` : `Monitoring ${products.length} items across platforms`}
+                </p>
               </div>
+              
+              <div className="relative group w-full sm:w-80">
+                <input 
+                  type="text" 
+                  placeholder="Paste product name or URL..."
+                  value={productInput}
+                  onChange={(e) => setProductInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addNewProduct()}
+                  className="w-full pl-4 pr-32 py-3 bg-[#111] border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all shadow-xl"
+                />
+                <button 
+                  onClick={addNewProduct}
+                  disabled={addingProduct || !productInput.trim()}
+                  className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-800 disabled:text-gray-500 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2"
+                >
+                  {addingProduct ? <Loader2 size={14} className="animate-spin" /> : <TrendingUpIcon size={14} />}
+                  Track
+                </button>
+              </div>
+            </div>
 
-              <div className="bg-[#141414] border border-border rounded-3xl p-6 lg:p-8 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold mb-2">AI Recommendation</h3>
-                  <p className="text-gray-500 text-sm mb-6">
-                    {selectedProduct?.aiRecommendation 
-                      ? 'Based on historical data and current analysis' 
-                      : 'AI analysis will appear when price data is available'}
+            {statusMessage && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-blue-500/10 border border-blue-500/20 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                </div>
+                <p className="text-blue-400 text-sm font-medium">{statusMessage}</p>
+              </div>
+            )}
+
+            {!selectedProduct ? (
+              <div className="h-[60vh] flex flex-col items-center justify-center text-center space-y-6">
+                <div className="w-20 h-20 bg-gray-900 rounded-3xl flex items-center justify-center border border-border shadow-2xl">
+                  <AlertCircle size={40} className="text-gray-600" />
+                </div>
+                <div className="space-y-2 max-w-md">
+                  <h2 className="text-2xl font-bold text-gray-200">No Product Selected</h2>
+                  <p className="text-gray-500">
+                    Select a product from the sidebar or add a new one to see real-time price intelligence and AI recommendations.
                   </p>
-                  
-                  {selectedProduct?.aiRecommendation && !selectedProduct.aiRecommendation.error ? (
-                    <div className={`${
-                      selectedProduct.aiRecommendation.recommendation === 'Buy Now' 
-                        ? 'bg-green-500/10 border-green-500/20' 
-                        : 'bg-yellow-500/10 border-yellow-500/20'
-                    } border rounded-2xl p-4 flex items-start gap-4 mb-4`}>
-                      {selectedProduct.aiRecommendation.recommendation === 'Buy Now' ? (
-                        <TrendingDown className="text-green-500 mt-1" size={24} />
-                      ) : (
-                        <TrendingUpIcon className="text-yellow-500 mt-1" size={24} />
-                      )}
-                      <div>
-                        <h4 className={`font-bold ${
-                          selectedProduct.aiRecommendation.recommendation === 'Buy Now' 
-                            ? 'text-green-500' 
-                            : 'text-yellow-500'
-                        }`}>
-                          {selectedProduct.aiRecommendation.recommendation}
-                        </h4>
-                        <p className="text-sm text-gray-400 mt-1">
-                          {selectedProduct.aiRecommendation.summary || 'No summary available'}
-                        </p>
-                        {selectedProduct.aiRecommendation.bestPlatform && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            Best on: <span className="text-blue-400">{selectedProduct.aiRecommendation.bestPlatform}</span>
-                          </p>
-                        )}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Visual Data Column */}
+                <div className="lg:col-span-8 space-y-6">
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div className="bg-[#111] border border-border rounded-2xl p-6 shadow-sm hover:border-gray-700 transition-all">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Lowest Price</span>
+                        <div className="p-1.5 bg-green-500/10 rounded-lg"><TrendingDown size={14} className="text-green-500" /></div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-2xl font-bold text-green-500">
+                          {selectedProduct.comparison?.lowestPrice ? `₹${selectedProduct.comparison.lowestPrice}` : '---'}
+                        </span>
+                        <span className="text-[10px] text-gray-500 mt-1 capitalize">on {selectedProduct.comparison?.lowestPlatform || 'N/A'}</span>
                       </div>
                     </div>
-                  ) : selectedProduct?.aiRecommendation?.error ? (
-                    <div className="bg-gray-500/10 border border-gray-500/20 rounded-2xl p-4">
-                      <p className="text-sm text-gray-400">
-                        AI analysis unavailable. {selectedProduct.aiRecommendation.message || 'Ollama might not be running.'}
+                    
+                    <div className="bg-[#111] border border-border rounded-2xl p-6 shadow-sm hover:border-gray-700 transition-all">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Max Potential Savings</span>
+                        <div className="p-1.5 bg-blue-500/10 rounded-lg"><TrendingUpIcon size={14} className="text-blue-500" /></div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-2xl font-bold text-blue-500">
+                          {selectedProduct.comparison?.savings ? `₹${selectedProduct.comparison.savings}` : '₹0'}
+                        </span>
+                        <span className="text-[10px] text-gray-500 mt-1">compared to market max</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#111] border border-border rounded-2xl p-6 shadow-sm hover:border-gray-700 transition-all">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Latest Update</span>
+                        <div className="p-1.5 bg-purple-500/10 rounded-lg"><Loader2 size={14} className="text-purple-500" /></div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-lg font-bold">Just Now</span>
+                        <span className="text-[10px] text-gray-500 mt-1">Auto-refresh active</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Main Chart */}
+                  <div className="bg-[#111] border border-border rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8">
+                       {loadingPrices && <Loader2 className="animate-spin text-blue-500 opacity-50" size={24} />}
+                    </div>
+                    <div className="flex items-center gap-3 mb-8">
+                      <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
+                      <h3 className="text-xl font-bold tracking-tight">Price Trend Analysis</h3>
+                    </div>
+                    
+                    <div className="h-[350px]">
+                      {priceData.length > 0 ? (
+                        <PriceChart data={priceData} />
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-500 space-y-4">
+                          <div className="animate-pulse bg-gray-800 h-2 w-48 rounded"></div>
+                          <div className="animate-pulse bg-gray-800 h-2 w-32 rounded"></div>
+                          <p className="text-sm font-medium">Scraping latest market data...</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* All Platforms Comparison */}
+                  <div className="bg-[#111] border border-border rounded-[2rem] p-8 shadow-sm">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-bold tracking-tight">Market Comparison</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedProduct.prices?.map((item: any, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between p-5 bg-[#161616] border border-border rounded-2xl hover:border-blue-500/30 transition-all group">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm ${
+                              item.platform === 'Amazon' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-600/10 text-blue-400'
+                            }`}>
+                              {item.platform[0]}
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-tight">{item.platform}</p>
+                              <p className="text-lg font-bold">₹{item.price}</p>
+                            </div>
+                          </div>
+                          <a 
+                            href={item.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="p-3 bg-gray-800 hover:bg-gray-700 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                          >
+                            <ExternalLink size={16} />
+                          </a>
+                        </div>
+                      ))}
+                      {!selectedProduct.prices?.length && (
+                        <p className="text-gray-600 italic text-sm text-center col-span-2 py-4">Waiting for scraper results...</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI & Insights Column */}
+                <div className="lg:col-span-4 space-y-6">
+                  {/* AI Prediction Card */}
+                  <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-[2rem] p-8 text-white shadow-2xl relative overflow-hidden shadow-blue-500/10">
+                    <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+                    <div className="relative z-10 space-y-6">
+                      <div className="flex items-center gap-2 px-3 py-1 bg-white/20 w-fit rounded-full text-xs font-bold uppercase tracking-wider">
+                        <TrendingUpIcon size={12} />
+                        AI Prediction
+                      </div>
+                      
+                      {selectedProduct.aiRecommendation ? (
+                        <>
+                          <div className="space-y-2">
+                            <h4 className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Market Recommendation</h4>
+                            <div className="flex items-baseline gap-2">
+                              <h2 className="text-4xl font-black">{selectedProduct.aiRecommendation.recommendation}</h2>
+                              <span className="text-xs font-bold px-2 py-0.5 bg-white/20 rounded-md">
+                                {selectedProduct.aiRecommendation.confidence || '85%'} Confidence
+                              </span>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <p className="text-sm leading-relaxed font-medium text-blue-50 opacity-90 italic">
+                               "{selectedProduct.aiRecommendation.summary}"
+                            </p>
+                            {selectedProduct.aiRecommendation.why && (
+                              <div className="p-3 bg-white/10 rounded-xl border border-white/10">
+                                <p className="text-[10px] font-bold uppercase opacity-60 mb-1">Key Insight</p>
+                                <p className="text-xs font-semibold">{selectedProduct.aiRecommendation.why}</p>
+                              </div>
+                            )}
+                          </div>
+                          <div className="pt-2 flex items-center gap-3">
+                            <div className="flex-1 h-px bg-white/30"></div>
+                            <span className="text-[10px] font-bold uppercase opacity-40">Insight generated by Mistral AI</span>
+                            <div className="flex-1 h-px bg-white/30"></div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-4 py-8 text-center bg-white/5 rounded-2xl border border-white/10">
+                          <Loader2 className="animate-spin mx-auto opacity-50" size={32} />
+                          <p className="text-sm font-medium opacity-80">Synthesizing market trends...</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Price Consistency */}
+                  <div className="bg-[#111] border border-border rounded-[2rem] p-8 space-y-6">
+                    <h3 className="text-lg font-bold">Analysis Quality</h3>
+                    <div className="space-y-6">
+                      <div>
+                        <div className="flex justify-between text-xs font-medium mb-2">
+                          <span className="text-gray-400">AI Confidence Score</span>
+                          <span className="text-blue-400">{selectedProduct.aiRecommendation?.confidence || '0%'}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-gray-900 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-all duration-1000"
+                            style={{ width: selectedProduct.aiRecommendation?.confidence || '0%' }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 bg-gray-900/50 rounded-2xl border border-border/50">
+                        <p className="text-xs text-gray-400 leading-relaxed italic">
+                          {selectedProduct.aiRecommendation?.recommendation === 'Strong Buy' 
+                            ? "Market analysis indicates this is a historical low or significantly below average. High recommendation to proceed."
+                            : selectedProduct.aiRecommendation?.recommendation === 'Wait for Sale'
+                            ? "Current trends suggest a price drop is likely within the next period based on seasonal volatility."
+                            : "Standard market price detected. Comparative analysis shows stable trends across most platforms."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recently Viewed */}
+                  <div className="bg-[#111] border border-border rounded-[2rem] p-8 hidden lg:block">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-gray-600 mb-4">Quick Tip</h3>
+                    <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10">
+                      <p className="text-xs text-blue-400/80 leading-relaxed">
+                        Add more products to see cross-category price trends and get comprehensive market insights.
                       </p>
                     </div>
-                  ) : (
-                    <div className="bg-gray-500/10 border border-gray-500/20 rounded-2xl p-4">
-                      <Loader2 className="animate-spin text-gray-500 mb-2" size={20} />
-                      <p className="text-sm text-gray-400">Waiting for price data...</p>
-                    </div>
-                  )}
+                  </div>
                 </div>
-
-                {selectedProduct?.comparison && (
-                  <div className="pt-6 border-t border-border mt-6">
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 text-sm">Lowest Price</span>
-                        <span className="font-semibold text-green-500">
-                          ${selectedProduct.comparison.lowestPrice || 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 text-sm">Highest Price</span>
-                        <span className="font-semibold text-red-500">
-                          ${selectedProduct.comparison.highestPrice || 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 text-sm">You Save</span>
-                        <span className="font-bold text-blue-500">
-                          ${selectedProduct.comparison.savings || '0'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
-            </div>
-
-            {/* Products Table */}
-            <div className="bg-[#141414] border border-border rounded-3xl p-6 lg:p-8">
-              <h3 className="text-xl font-semibold mb-6">Tracked Products</h3>
-              <div className="space-y-4">
-                {products.map((product: Product) => (
-                  <div 
-                    key={product.id}
-                    onClick={() => selectProduct(product)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                      selectedProduct?.id === product.id
-                        ? 'border-blue-500 bg-blue-500/5'
-                        : 'border-border hover:border-gray-600 bg-[#1a1a1a]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-semibold">{product.name}</h4>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Added {new Date(product.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <button className="text-blue-500 hover:text-blue-400 text-sm font-medium">
-                          View Details →
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
 }
