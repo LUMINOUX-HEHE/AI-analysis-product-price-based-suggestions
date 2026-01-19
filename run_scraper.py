@@ -4,12 +4,19 @@ import sys
 import argparse
 import json
 from pathlib import Path
+import traceback
 
 # Add headless_scraper to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from headless_scraper.amazon_headless import AmazonHeadlessScraper
-from headless_scraper.flipkart_headless import FlipkartHeadlessScraper
+try:
+    from headless_scraper.amazon_headless import AmazonHeadlessScraper
+    from headless_scraper.flipkart_headless import FlipkartHeadlessScraper
+except ImportError as e:
+    print(f"[ERROR] Failed to import scrapers: {e}")
+    print("[INFO] Make sure Playwright is installed: pip install playwright")
+    sys.exit(1)
+
 from headless_scraper.utils import clean_product_data
 import aiohttp
 
@@ -18,6 +25,8 @@ async def scrape_and_send(product_name: str, endpoint: str):
     """Scrape Amazon & Flipkart and send to backend endpoint"""
     
     all_products = []
+    amazon_scraper = None
+    flipkart_scraper = None
     
     # Scrape Amazon
     try:
@@ -28,6 +37,13 @@ async def scrape_and_send(product_name: str, endpoint: str):
         all_products.extend(amazon_products)
     except Exception as e:
         print(f"[Amazon] Error: {str(e)}")
+        traceback.print_exc()
+    finally:
+        if amazon_scraper:
+            try:
+                await amazon_scraper.close()
+            except:
+                pass
     
     # Scrape Flipkart
     try:
@@ -38,26 +54,45 @@ async def scrape_and_send(product_name: str, endpoint: str):
         all_products.extend(flipkart_products)
     except Exception as e:
         print(f"[Flipkart] Error: {str(e)}")
+        traceback.print_exc()
+    finally:
+        if flipkart_scraper:
+            try:
+                await flipkart_scraper.close()
+            except:
+                pass
     
     if not all_products:
-        print("No products found.")
+        print("[WARNING] No products found. This might be because:")
+        print("  1. Chromium browser is not installed (run: python -m playwright install chromium)")
+        print("  2. The websites are blocking the scraper")
+        print("  3. Search results page structure changed")
         return
     
     # Send to backend
     print(f"\nSubmitting {len(all_products)} products to {endpoint}...")
-    async with aiohttp.ClientSession() as session:
-        for idx, product in enumerate(all_products, 1):
-            try:
-                # Clean data for API compatibility
-                cleaned = clean_product_data(product)
-                
-                async with session.post(endpoint, json=cleaned) as resp:
-                    if resp.status == 200:
-                        print(f"  ✓ [{idx}/{len(all_products)}] {cleaned['productName']} - {cleaned['platform']}")
-                    else:
-                        print(f"  ✗ [{idx}/{len(all_products)}] Failed: {resp.status}")
-            except Exception as e:
-                print(f"  ✗ [{idx}/{len(all_products)}] Error: {str(e)}")
+    try:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for idx, product in enumerate(all_products, 1):
+                try:
+                    # Clean data for API compatibility
+                    cleaned = clean_product_data(product)
+                    
+                    async with session.post(endpoint, json=cleaned) as resp:
+                        if resp.status == 200:
+                            print(f"  ✓ [{idx}/{len(all_products)}] {cleaned['productName']} - {cleaned['platform']}")
+                        elif resp.status == 201:
+                            print(f"  ✓ [{idx}/{len(all_products)}] {cleaned['productName']} - {cleaned['platform']} (Created)")
+                        else:
+                            print(f"  ✗ [{idx}/{len(all_products)}] Failed: HTTP {resp.status}")
+                except asyncio.TimeoutError:
+                    print(f"  ✗ [{idx}/{len(all_products)}] Timeout sending to backend")
+                except Exception as e:
+                    print(f"  ✗ [{idx}/{len(all_products)}] Error: {str(e)}")
+    except Exception as e:
+        print(f"[ERROR] Failed to send products to backend: {e}")
+        traceback.print_exc()
     
     print("\n✅ Scraping complete!")
 
@@ -69,8 +104,20 @@ def main():
     
     args = parser.parse_args()
     
-    # Run async scraper
-    asyncio.run(scrape_and_send(args.product_name, args.endpoint))
+    print(f"[INFO] Starting scraper for: {args.product_name}")
+    print(f"[INFO] Backend endpoint: {args.endpoint}")
+    
+    try:
+        # Run async scraper
+        asyncio.run(scrape_and_send(args.product_name, args.endpoint))
+        print("[SUCCESS] Scraper completed successfully")
+    except KeyboardInterrupt:
+        print("\n[INFO] Scraper interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        print(f"[ERROR] Scraper failed: {e}")
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
