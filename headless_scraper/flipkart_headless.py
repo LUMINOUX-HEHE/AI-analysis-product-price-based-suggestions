@@ -7,14 +7,6 @@ from playwright.async_api import async_playwright, Page, Browser
 from urllib.parse import quote_plus
 import sys
 import os
-import io
-
-# Fix Unicode encoding for Windows console
-if sys.platform == 'win32' and hasattr(sys.stdout, 'buffer'):
-    try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    except:
-        pass  # If this fails, just continue
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from headless_scraper.config import (
@@ -29,11 +21,11 @@ from headless_scraper.config import (
 def safe_print(text: str):
     """Safely print text with Unicode characters"""
     try:
-        print(text)
+        print(text, flush=True)
     except UnicodeEncodeError:
         # Remove problematic characters and print
         safe_text = text.encode('ascii', errors='replace').decode('ascii')
-        print(safe_text)
+        print(safe_text, flush=True)
 
 class FlipkartHeadlessScraper:
     """Flipkart scraper using headless Playwright"""

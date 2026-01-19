@@ -6,14 +6,6 @@ import argparse
 import json
 from pathlib import Path
 import traceback
-import io
-
-# Fix Unicode encoding for Windows console  
-if sys.platform == 'win32' and hasattr(sys.stdout, 'buffer'):
-    try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    except:
-        pass  # If this fails (e.g., in piped context), just continue
 
 # Add headless_scraper to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -28,6 +20,23 @@ except ImportError as e:
 
 from headless_scraper.utils import clean_product_data
 import aiohttp
+
+
+def safe_print(text: str):
+    """Safely print text with Unicode characters"""
+    try:
+        print(text, flush=True)
+    except UnicodeEncodeError:
+        # Replace problematic Unicode characters
+        safe_text = (text
+            .replace('✓', '[OK]')
+            .replace('✗', '[X]')
+            .replace('✅', '[SUCCESS]')
+            .replace('❌', '[FAIL]')
+            .replace('▼', 'v')
+            .replace('►', '>')
+            .encode('ascii', errors='replace').decode('ascii'))
+        print(safe_text, flush=True)
 
 
 async def scrape_and_send(product_name: str, endpoint: str):
@@ -90,20 +99,20 @@ async def scrape_and_send(product_name: str, endpoint: str):
                     
                     async with session.post(endpoint, json=cleaned) as resp:
                         if resp.status == 200:
-                            print(f"  ✓ [{idx}/{len(all_products)}] {cleaned['productName']} - {cleaned['platform']}")
+                            safe_print(f"  [OK] [{idx}/{len(all_products)}] {cleaned['productName']} - {cleaned['platform']}")
                         elif resp.status == 201:
-                            print(f"  ✓ [{idx}/{len(all_products)}] {cleaned['productName']} - {cleaned['platform']} (Created)")
+                            safe_print(f"  [OK] [{idx}/{len(all_products)}] {cleaned['productName']} - {cleaned['platform']} (Created)")
                         else:
-                            print(f"  ✗ [{idx}/{len(all_products)}] Failed: HTTP {resp.status}")
+                            safe_print(f"  [X] [{idx}/{len(all_products)}] Failed: HTTP {resp.status}")
                 except asyncio.TimeoutError:
-                    print(f"  ✗ [{idx}/{len(all_products)}] Timeout sending to backend")
+                    safe_print(f"  [X] [{idx}/{len(all_products)}] Timeout sending to backend")
                 except Exception as e:
-                    print(f"  ✗ [{idx}/{len(all_products)}] Error: {str(e)}")
+                    safe_print(f"  [X] [{idx}/{len(all_products)}] Error: {str(e)}")
     except Exception as e:
-        print(f"[ERROR] Failed to send products to backend: {e}")
+        safe_print(f"[ERROR] Failed to send products to backend: {e}")
         traceback.print_exc()
     
-    print("\n✅ Scraping complete!")
+    safe_print("\n[SUCCESS] Scraping complete!")
 
 
 def main():
@@ -119,12 +128,12 @@ def main():
     try:
         # Run async scraper
         asyncio.run(scrape_and_send(args.product_name, args.endpoint))
-        print("[SUCCESS] Scraper completed successfully")
+        safe_print("[SUCCESS] Scraper completed successfully")
     except KeyboardInterrupt:
-        print("\n[INFO] Scraper interrupted by user")
+        safe_print("\n[INFO] Scraper interrupted by user")
         sys.exit(0)
     except Exception as e:
-        print(f"[ERROR] Scraper failed: {e}")
+        safe_print(f"[ERROR] Scraper failed: {e}")
         traceback.print_exc()
         sys.exit(1)
 
